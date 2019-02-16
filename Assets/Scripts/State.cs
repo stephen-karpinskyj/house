@@ -1,6 +1,4 @@
-﻿using UnityEngine;
-
-public class State : BehaviourSingleton<State>
+﻿public class State : BehaviourSingleton<State>
 {
-    public StateEntry<Vector3> PlayerPosition = new StateEntry<Vector3>();
+    public PlayerState Player = new PlayerState();
 }
