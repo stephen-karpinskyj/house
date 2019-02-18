@@ -3,5 +3,6 @@
 public class PlayerState
 {
     public StateEntry<Vector3> WorldPosition = new StateEntry<Vector3>();
-    public StateEntry<Vector2> ViewportPosition = new StateEntry<Vector2>();
+    public StateEntry<Quaternion> WorldRotation = new StateEntry<Quaternion>();
+    public StateEntry<bool> Dragging = new StateEntry<bool>();
 }

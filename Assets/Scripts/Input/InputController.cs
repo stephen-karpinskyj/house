@@ -1,85 +1,146 @@
 ﻿using UnityEngine;
+using UnityEngine.AI;
 
+[RequireComponent(typeof(NavMeshAgent))]
 public class InputController : MonoBehaviour
 {
     [SerializeField]
-    private float maxSpeed = 10f;
+    private float minMoveDistance = 0.001f;
 
     [SerializeField]
-    private float minDistance = 0.001f;
+    private float minTurnDistance = 0.02f;
 
     [SerializeField]
     private float raycastDistance = 15f;
+
+    [SerializeField]
+    private LayerMask playerLayerMask = 0;
     
     [SerializeField]
-    private LayerMask inputHitLayerMask = 0;
+    private LayerMask floorLayerMask = 0;
 
-    private Vector3 pointerPosition;
+    private NavMeshAgent navMeshAgent;
+
+    private Vector3 lastTurnWorldPosition;
     private Vector3 inputWorldPosition;
-    private Vector2 inputViewportPosition;
+    private Vector3 inputWorldPositionOffset;
+
+    // TODO: Use mouse cursor or first touch only as pointer
+
+    private bool Pointing => Input.GetMouseButton(0);
+
+    private Vector3 PointerPosition => Input.mousePosition;
+
+    private bool PointerDown => Input.GetMouseButtonDown(0);
+
+    private bool PointerUp => Input.GetMouseButtonUp(0);
+
+    private Vector3 PlayerWorldPosition
+    {
+        get => State.Instance.Player.WorldPosition.Value;
+        set => State.Instance.Player.WorldPosition.Value = value;
+    }
+
+    private Quaternion PlayerWorldRotation
+    {
+        set => State.Instance.Player.WorldRotation.Value = value;
+    }
+
+    private bool PlayerDragging
+    {
+        get => State.Instance.Player.Dragging.Value;
+        set => State.Instance.Player.Dragging.Value = value;
+    }
+    
+    private void Awake()
+    {
+        navMeshAgent = GetComponent<NavMeshAgent>();
+        navMeshAgent.updateRotation = false;
+    }
 
     private void Start()
     {
-        InitialiseInputPositions();
+        PlayerWorldPosition = transform.localPosition;
+        PlayerWorldRotation = transform.localRotation;
+        navMeshAgent.Warp(transform.localPosition);
     }
     
     private void Update()
     {
-        UpdateInputPositions();
-        UpdatePlayerPositions();
-    }
-    
-    private void InitialiseInputPositions()
-    {
-        inputWorldPosition = GetPlayerWorldPosition();
-        inputViewportPosition = CalculateViewportPosition(inputWorldPosition);
-        SetPlayerViewportPosition(inputViewportPosition);
-    }
-
-    private void UpdateInputPositions()
-    {
-        if (Input.GetMouseButton(0) && pointerPosition != Input.mousePosition)
+        if (HandleInput())
         {
-            pointerPosition = Input.mousePosition;
+            Move();
+            Turn();
+        }
+    }
 
-            Ray ray = Camera.main.ScreenPointToRay(pointerPosition);
-
-            if (Physics.Raycast(ray, out RaycastHit hit, raycastDistance, inputHitLayerMask))
+    private bool HandleInput()
+    {
+        if (Pointing)
+        {
+            Ray ray = Camera.main.ScreenPointToRay(PointerPosition);
+            RaycastHit hit;
+            
+            if (PointerDown)
             {
-                inputWorldPosition = hit.point;
-                inputViewportPosition = CalculateViewportPosition(inputWorldPosition);
+                if (Physics.Raycast(ray, out hit, raycastDistance, playerLayerMask))
+                {
+                    PlayerDragging = true;
+                }
+            }
+
+            if (PlayerDragging)
+            {
+                if (Physics.Raycast(ray, out hit, raycastDistance, floorLayerMask))
+                {
+                    if (PointerDown)
+                    {
+                        inputWorldPositionOffset = hit.point - PlayerWorldPosition;
+                    }
+
+                    inputWorldPosition = hit.point - inputWorldPositionOffset;
+                    
+                    if (PointerDown)
+                    {
+                        lastTurnWorldPosition = inputWorldPosition;
+                    }
+                }
+
+                return true;
             }
         }
+        
+        if (PointerUp)
+        {
+            PlayerDragging = false;
+        }
+
+        return false;
     }
     
-    private void UpdatePlayerPositions()
-    {
-        Vector3 nextWorldPosition = Vector3.Lerp(GetPlayerWorldPosition(), inputWorldPosition, Time.smoothDeltaTime * maxSpeed);
-
-        if (Vector3.Distance(GetPlayerWorldPosition(), nextWorldPosition) >= minDistance)
+    private void Move()
+    { 
+        Vector3 currWorldPosition = PlayerWorldPosition;
+        
+        if (Vector3.Distance(inputWorldPosition, currWorldPosition) >= minMoveDistance)
         {
-            SetPlayerWorldPosition(nextWorldPosition);
-            SetPlayerViewportPosition(CalculateViewportPosition(nextWorldPosition));
+            Vector3 nextWorldPosition = Vector3.MoveTowards(currWorldPosition, inputWorldPosition, Time.deltaTime * navMeshAgent.speed);
+            Vector3 moveVector = nextWorldPosition - currWorldPosition;
+            navMeshAgent.Move(moveVector);
+            PlayerWorldPosition = navMeshAgent.nextPosition;
+
+            inputWorldPositionOffset = Vector3.MoveTowards(inputWorldPositionOffset, Vector3.zero, moveVector.magnitude);
         }
     }
 
-    private Vector2 CalculateViewportPosition(Vector3 worldPosition)
+    private void Turn() 
     {
-        return Camera.main.WorldToViewportPoint(worldPosition);
-    }
+        if (Vector3.Distance(inputWorldPosition, lastTurnWorldPosition) >= minTurnDistance)
+        {
+            Vector3 lookVector = (inputWorldPosition - lastTurnWorldPosition).normalized;
+            PlayerWorldRotation = Quaternion.LookRotation(lookVector);
 
-    private Vector3 GetPlayerWorldPosition()
-    {
-        return State.Instance.Player.WorldPosition.Value;
-    }
-
-    private void SetPlayerWorldPosition(Vector3 value)
-    {
-        State.Instance.Player.WorldPosition.Value = value;
-    }
-    
-    private void SetPlayerViewportPosition(Vector2 value)
-    {
-        State.Instance.Player.ViewportPosition.Value = value;
+            lastTurnWorldPosition = inputWorldPosition;
+        }
     }
 }

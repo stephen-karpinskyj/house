@@ -3,6 +3,12 @@
 [RequireComponent(typeof(Camera))]
 public class CameraMovement : MonoBehaviour
 {
+    [SerializeField, Range(0f, 1f)]
+    private float xMultiplier = 1f;
+
+    [SerializeField, Range(0f, 1f)]
+    private float zMultiplier = 1f;
+
     [SerializeField]
     private Vector2 shiftFactor = Vector2.one;
     
@@ -26,7 +32,10 @@ public class CameraMovement : MonoBehaviour
 
     private void HandlePlayerWorldPositionChange(Vector3 value)
     {
-        transform.localPosition = new Vector3(value.x, transform.localPosition.y, value.z);
-        cam.lensShift = new Vector2(value.x * shiftFactor.x, value.z * shiftFactor.y);
+        float x = value.x * xMultiplier;
+        float z = value.z * zMultiplier;
+        
+        transform.localPosition = new Vector3(x, transform.localPosition.y, z);
+        cam.lensShift = new Vector2(x * shiftFactor.x, z * shiftFactor.y);
     }
 }
