@@ -1,21 +1,21 @@
 ﻿using UnityEngine;
 
-public class Torch : MonoBehaviour
+public class Torch : BaseMonoBehaviour
 {
     [SerializeField]
     private float turnSpeed = 10f;
 
     [SerializeField]
-    private Light torchLight;
+    private Light[] torchLights;
     
     private Quaternion rotationOffset;
     private StateSubscriber<bool> playerDragging;
 
     private void Awake()
     {
-        if (!torchLight)
+        if (torchLights.Length == 0)
         {
-            torchLight = GetComponentInChildren<Light>();
+            torchLights = GetComponentsInChildren<Light>();
         }
         
         rotationOffset = transform.localRotation;
@@ -39,6 +39,9 @@ public class Torch : MonoBehaviour
 
     private void HandlePlayerDraggingChange(bool value)
     {
-        torchLight.enabled = value;
+        foreach (Light l in torchLights)
+        {
+            l.enabled = value;
+        }
     }
 }

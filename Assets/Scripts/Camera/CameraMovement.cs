@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 
 [RequireComponent(typeof(Camera))]
-public class CameraMovement : MonoBehaviour
+public class CameraMovement : BaseMonoBehaviour
 {
     [SerializeField, Range(0f, 1f)]
     private float xMultiplier = 1f;

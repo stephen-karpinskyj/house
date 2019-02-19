@@ -2,7 +2,7 @@
 using UnityEngine.AI;
 
 [RequireComponent(typeof(NavMeshAgent))]
-public class InputController : MonoBehaviour
+public class InputController : BaseMonoBehaviour
 {
     [SerializeField]
     private float minMoveDistance = 0.001f;
