@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 
 [RequireComponent(typeof(Camera))]
-public class CameraMovement : BaseMonoBehaviour
+public class CameraShift : BaseMonoBehaviour
 {
     [SerializeField, Range(0f, 1f)]
     private float xMultiplier = 1f;
@@ -15,13 +15,10 @@ public class CameraMovement : BaseMonoBehaviour
     private Camera cam;
     private StateSubscriber<Vector3> playerWorldPosition;
 
-    private void Awake()
-    {
-        cam = GetComponent<Camera>();
-    }
-
     private void OnEnable()
     {
+        cam = GetComponent<Camera>();
+        
         playerWorldPosition.Subscribe(State.Instance.Player.WorldPosition, HandlePlayerWorldPositionChange);
     }
 

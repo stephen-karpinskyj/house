@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using DG.Tweening;
 
 public class Torch : BaseMonoBehaviour
 {
@@ -6,42 +7,45 @@ public class Torch : BaseMonoBehaviour
     private float turnSpeed = 10f;
 
     [SerializeField]
-    private Light[] torchLights;
+    private Light torchLight;
+
+    [SerializeField]
+    private float tweenDuration = 0.1f;
     
     private Quaternion rotationOffset;
-    private StateSubscriber<bool> playerDragging;
+    private float activeIntensity;
+    private StateSubscriber<bool> playerGrabbed;
 
     private void Awake()
     {
-        if (torchLights.Length == 0)
-        {
-            torchLights = GetComponentsInChildren<Light>();
-        }
-        
         rotationOffset = transform.localRotation;
+        activeIntensity = torchLight.intensity;
     }
 
     private void Update()
     {
         Quaternion nextRotation = State.Instance.Player.WorldRotation.Value * rotationOffset;
-        transform.localRotation = Quaternion.Slerp(transform.localRotation, nextRotation, Time.deltaTime * turnSpeed);
+        transform.localRotation = Quaternion.Slerp(transform.localRotation, nextRotation, Time.unscaledDeltaTime * turnSpeed);
     }
 
     private void OnEnable()
     {
-        playerDragging.Subscribe(State.Instance.Player.Dragging, HandlePlayerDraggingChange);
+        if (!torchLight)
+        {
+            torchLight = GetComponentInChildren<Light>();
+        }
+
+        playerGrabbed.Subscribe(State.Instance.Player.Grabbed, HandlePlayerGrabbedChange);
     }
 
     private void OnDisable()
     {
-        playerDragging.Unsubscribe();
+        playerGrabbed.Unsubscribe();
     }
 
-    private void HandlePlayerDraggingChange(bool value)
+    private void HandlePlayerGrabbedChange(bool value)
     {
-        foreach (Light l in torchLights)
-        {
-            l.enabled = value;
-        }
+        float intensity = value ? activeIntensity : 0f;
+        torchLight.DOIntensity(intensity, tweenDuration);
     }
 }

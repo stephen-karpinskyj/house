@@ -1,29 +1,24 @@
 ﻿using UnityEngine;
-using UnityEngine.AI;
 
-[RequireComponent(typeof(NavMeshAgent))]
 public class InputController : BaseMonoBehaviour
 {
-    [SerializeField]
-    private float minMoveDistance = 0.001f;
+    [SerializeField, Tooltip("Minimum world-space distance that pointer needs to move for input to be detected.")]
+    private float minDistance = 0.001f;
+    
+    [SerializeField, Tooltip("Maximum world-space distance that pointer can move before it is divided into a segment.")]
+    private float maxDistance = 0.1f;
 
     [SerializeField]
-    private float minTurnDistance = 0.02f;
-
-    [SerializeField]
-    private float raycastDistance = 15f;
+    private float maxRaycastDistance = 15f;
 
     [SerializeField]
     private LayerMask playerLayerMask = 0;
-    
+
     [SerializeField]
     private LayerMask floorLayerMask = 0;
 
-    private NavMeshAgent navMeshAgent;
-
-    private Vector3 lastTurnWorldPosition;
-    private Vector3 inputWorldPosition;
-    private Vector3 inputWorldPositionOffset;
+    private Vector3 lastWorldPosition;
+    private Vector3 worldPosition;
 
     // TODO: Use mouse cursor or first touch only as pointer
 
@@ -35,46 +30,28 @@ public class InputController : BaseMonoBehaviour
 
     private bool PointerUp => Input.GetMouseButtonUp(0);
 
-    private Vector3 PlayerWorldPosition
+    private int WorldPositionsCount
     {
-        get => State.Instance.Player.WorldPosition.Value;
-        set => State.Instance.Player.WorldPosition.Value = value;
+        set => State.Instance.Input.WorldPositionsCount.Value = value;
     }
 
-    private Quaternion PlayerWorldRotation
+    private Vector3[] WorldPositions => State.Instance.Input.WorldPositions.Value;
+
+    private Vector3 WorldPositionPlayerOffset
     {
-        set => State.Instance.Player.WorldRotation.Value = value;
+        get => State.Instance.Input.WorldPositionPlayerOffset.Value;
+        set => State.Instance.Input.WorldPositionPlayerOffset.Value = value;
     }
 
-    private bool PlayerDragging
-    {
-        get => State.Instance.Player.Dragging.Value;
-        set => State.Instance.Player.Dragging.Value = value;
-    }
-    
-    private void Awake()
-    {
-        navMeshAgent = GetComponent<NavMeshAgent>();
-        navMeshAgent.updateRotation = false;
-    }
+    private Vector3 PlayerWorldPosition => State.Instance.Player.WorldPosition.Value;
 
-    private void Start()
+    private bool PlayerGrabbed
     {
-        PlayerWorldPosition = transform.localPosition;
-        PlayerWorldRotation = transform.localRotation;
-        navMeshAgent.Warp(transform.localPosition);
+        get => State.Instance.Player.Grabbed.Value;
+        set => State.Instance.Player.Grabbed.Value = value;
     }
     
     private void Update()
-    {
-        if (HandleInput())
-        {
-            Move();
-            Turn();
-        }
-    }
-
-    private bool HandleInput()
     {
         if (Pointing)
         {
@@ -83,64 +60,57 @@ public class InputController : BaseMonoBehaviour
             
             if (PointerDown)
             {
-                if (Physics.Raycast(ray, out hit, raycastDistance, playerLayerMask))
+                if (Physics.Raycast(ray, out hit, maxRaycastDistance, playerLayerMask))
                 {
-                    PlayerDragging = true;
+                    PlayerGrabbed = true;
                 }
             }
-
-            if (PlayerDragging)
+            
+            if (PlayerGrabbed)
             {
-                if (Physics.Raycast(ray, out hit, raycastDistance, floorLayerMask))
+                if (Physics.Raycast(ray, out hit, maxRaycastDistance, floorLayerMask))
                 {
-                    if (PointerDown)
-                    {
-                        inputWorldPositionOffset = hit.point - PlayerWorldPosition;
-                    }
-
-                    inputWorldPosition = hit.point - inputWorldPositionOffset;
+                    lastWorldPosition = worldPosition;
+                    worldPosition = hit.point;
                     
                     if (PointerDown)
                     {
-                        lastTurnWorldPosition = inputWorldPosition;
+                        WorldPositionPlayerOffset = hit.point - PlayerWorldPosition;
+                        lastWorldPosition = hit.point;
+                    }
+
+                    int count = UpdateWorldPositions();
+                    
+                    if (count <= 0)
+                    {
+                        worldPosition = lastWorldPosition;
                     }
                 }
-
-                return true;
             }
         }
-        
+
         if (PointerUp)
         {
-            PlayerDragging = false;
+            PlayerGrabbed = false;
         }
-
-        return false;
     }
     
-    private void Move()
-    { 
-        Vector3 currWorldPosition = PlayerWorldPosition;
-        
-        if (Vector3.Distance(inputWorldPosition, currWorldPosition) >= minMoveDistance)
-        {
-            Vector3 nextWorldPosition = Vector3.MoveTowards(currWorldPosition, inputWorldPosition, Time.deltaTime * navMeshAgent.speed);
-            Vector3 moveVector = nextWorldPosition - currWorldPosition;
-            navMeshAgent.Move(moveVector);
-            PlayerWorldPosition = navMeshAgent.nextPosition;
-
-            inputWorldPositionOffset = Vector3.MoveTowards(inputWorldPositionOffset, Vector3.zero, moveVector.magnitude);
-        }
-    }
-
-    private void Turn() 
+    private int UpdateWorldPositions()
     {
-        if (Vector3.Distance(inputWorldPosition, lastTurnWorldPosition) >= minTurnDistance)
+        int count = 0;
+        
+        for (Vector3 pos = lastWorldPosition; Vector3.Distance(pos, worldPosition) >= minDistance; pos = Vector3.MoveTowards(pos, worldPosition, maxDistance))
         {
-            Vector3 lookVector = (inputWorldPosition - lastTurnWorldPosition).normalized;
-            PlayerWorldRotation = Quaternion.LookRotation(lookVector);
-
-            lastTurnWorldPosition = inputWorldPosition;
+            WorldPositions[count] = pos;
+            count++;
         }
+
+        if (count > 0)
+        {
+            WorldPositionsCount = count;
+            State.Instance.Input.WorldPositions.ForceUpdate();
+        }
+
+        return count;
     }
 }
