@@ -7,7 +7,7 @@ using UnityEngine;
 public class PlayerMovement : BaseMonoBehaviour
 {
     [SerializeField]
-    private float speed = 10f;
+    private float maxSpeed = 8f;
 
     [SerializeField]
     private float acceleration = 0.2f;
@@ -89,6 +89,6 @@ public class PlayerMovement : BaseMonoBehaviour
     
     private void Accelerate()
     {
-        currentSpeed = Mathf.Min(speed, currentSpeed + acceleration);
+        currentSpeed = Mathf.Min(maxSpeed, currentSpeed + acceleration);
     }
 }

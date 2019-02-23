@@ -8,23 +8,32 @@ using UnityEngine.AI;
 [RequireComponent(typeof(NavMeshAgent))]
 public class PlayerNavigation : BaseMonoBehaviour
 {
-    [SerializeField]
+    [SerializeField, Tooltip("Pathfind will succeed if path is less or equal to this length.")]
     private float maxPathfindDistance = 1f;
 
-    [SerializeField]
+    [SerializeField, Tooltip("Pathfind will succeed if it has less or equal to this number of path corners.")]
     private int maxPathfindCorners = 2;
 
-    [SerializeField]
-    private float minMoveDistance = 0.001f;
-
-    [SerializeField]
-    private float maxMoveDistance = 0.1f;
-
-    [SerializeField]
+    [SerializeField, Tooltip("Maximum number of times a direct move to target position is attempted each frame.")]
     private int maxMoveLoops = 10;
 
-    [SerializeField]
+    [SerializeField, Tooltip("Maximum distance of a direct move iteration.")]
+    private float maxMoveDistance = 0.1f;
+
+    [SerializeField, Tooltip("Minimum distance that a direct move iteration can be before iterations stop.")]
+    private float minMoveDistance = 0.001f;
+
+    [SerializeField, Tooltip("Node will be added to path indiscriminantly if it has less than this number of nodes.")]
+    private int minPathNodes = 1;
+    
+    [SerializeField, Tooltip("Node will be added to path indiscriminantly if it is at least this distance from end of path.")]
     private float minPathNodeDistance = 0.001f;
+
+    [SerializeField, Tooltip("Path end must be at least this direct distance from the start for the path to be simplified (ie. re-pathfinded).")]
+    private float minSimplifyPathDistance = 1f;
+    
+    [SerializeField, Tooltip("All nodes after first node that is at least this direct distance to end of path will be simplified (ie. re-pathfinded).")]
+    private float maxSimplifyPathDistance = 0.5f;
 
     private NavMeshAgent agent;
     private NavMeshPath path;
@@ -70,14 +79,23 @@ public class PlayerNavigation : BaseMonoBehaviour
     {
         if (playerGrabbed.Value)
         {
+            bool moved = false;
+            
             for (int i = 0; i < State.Instance.Input.WorldPositionsCount.Value; i++)
             {
                 Vector3 targetPosition = value[i];
 
-                if (TryPathfind(targetPosition) || TryMove(targetPosition)) { }
+                if (TryPathfind(targetPosition) || TryMove(targetPosition))
+                {
+                    moved = true;
+                }
             }
 
-            UpdatePlayerPath(agent.nextPosition);
+            if (moved && ExtendPlayerPath(agent.nextPosition))
+            {
+                SimplifyPlayerPath();
+                State.Instance.Player.WorldPositionPath.ForceUpdate();
+            }
         }
     }
 
@@ -116,11 +134,12 @@ public class PlayerNavigation : BaseMonoBehaviour
         return true;
     }
 
-    private void UpdatePlayerPath(Vector3 targetPosition)
+    private bool ExtendPlayerPath(Vector3 targetPosition)
     {
         Vector3 currentPosition = WorldPositionPath.Last != null ? WorldPositionPath.Last.Value : WorldPosition;
-        
-        if (Vector3.Distance(currentPosition, targetPosition) >= minPathNodeDistance)
+        float targetDistance = Vector3.Distance(currentPosition, targetPosition);
+
+        if (WorldPositionPath.Count < minPathNodes || targetDistance >= minPathNodeDistance)
         {
             agent.Warp(currentPosition);
             agent.CalculatePath(targetPosition, path);
@@ -131,7 +150,47 @@ public class PlayerNavigation : BaseMonoBehaviour
             {
                 WorldPositionPath.AddLast(pathCorners[i]);
             }
-            State.Instance.Player.WorldPositionPath.ForceUpdate();
+            
+            return true;
         }
+
+        return false;
+    }
+
+    private bool SimplifyPlayerPath()
+    {
+        bool simplify = false;
+        LinkedListNode<Vector3> simplifyLimit = null;
+        Vector3 pathEndPosition = WorldPositionPath.Last.Value;
+
+        for (LinkedListNode<Vector3> node = WorldPositionPath.First; node != null; node = node.Next)
+        {
+            float distanceToEnd = Vector3.Distance(WorldPositionPath.Last.Value, node.Value);
+
+            if (!simplify && distanceToEnd >= minSimplifyPathDistance)
+            {
+                simplify = true;
+            }
+            
+            if (distanceToEnd <= maxSimplifyPathDistance)
+            {
+                simplifyLimit = node;
+                break;
+            }
+        }
+
+        if (simplify && simplifyLimit != null)
+        {
+            while (simplifyLimit != null)
+            {
+                LinkedListNode<Vector3> node = simplifyLimit.Next;
+                WorldPositionPath.Remove(simplifyLimit);
+                simplifyLimit = node;
+            }
+
+            return ExtendPlayerPath(pathEndPosition);
+        }
+
+        return false;
     }
 }
